@@ -7,7 +7,9 @@ English numbers from [Quadrat-IPI](https://huggingface.co/datasets/mihailgribov/
 ```bash
 python3 -m proba.run --list                     # every registered adapter
 python3 -m proba.run --detector floor           # measure one (this one needs no model)
-python3 -m proba.table                          # the card's tables, from saved scores
+python3 -m proba.report                         # a page per detector: the grid, the marginals
+python3 -m proba.compare --against floor        # everyone at one budget, from saved scores
+python3 -m proba.table                          # the dataset card's tables
 ```
 
 The corpus is [privettoha/proba-ipi](https://huggingface.co/datasets/privettoha/proba-ipi): 16,800
@@ -95,6 +97,21 @@ table costs a second of arithmetic, not a re-run:
 python3 -m proba.table --results eval-out/results     # the card's tables
 python3 -m proba.ingest                               # import pre-harness runs into this shape
 ```
+
+`report` draws the page: the headline paired with the price it was bought at, the 92-cell grid
+with each tile split between the two operating points, the same grid per carrier, marginals by
+lever / objective / carrier / placement / obfuscation, and the detector against the regex floor.
+It computes nothing — every figure is read from a result file, so a page cannot disagree with the
+run it describes. Drawing is `figures.py`, vendored unchanged (see NOTICE).
+
+`compare` re-thresholds every saved detector to one budget. The case it exists for is a **binary**
+detector: the regex floor fires at 0.021% false positives, and reading it beside a column taken at
+0.1% hands the others five times its budget. At the floor's own rate, two of the English models
+fall to 0.0% — they lose to a handful of regexes when the budget is matched.
+
+`rescore` re-scores only documents whose text changed and splices them into a finished run,
+recomputing every metric (a changed negative can move the corpus-wide threshold). It is what keeps
+a released corpus reproducible from its own files after an edit.
 
 `ingest` is how the seven detectors measured before this harness existed became harness results:
 their scores were kept, so the metrics were recomputed from them without running a model. Runs
