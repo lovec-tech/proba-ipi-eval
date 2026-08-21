@@ -47,6 +47,7 @@ proba-table = "proba.table:main"
 proba-ingest = "proba.ingest:main"
 proba-compare = "proba.compare:main"
 proba-rescore = "proba.rescore:main"
+proba-report = "proba.report:main"
 
 [build-system]
 requires = ["hatchling"]

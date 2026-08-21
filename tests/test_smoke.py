@@ -133,3 +133,43 @@ def test_rescore_skips_an_unregistered_adapter():
     p = pathlib.Path(tempfile.mkstemp(suffix=".jsonl")[1])
     assert spliceable({"detector": "no-such-detector"}, p) == "no adapter in the registry"
     assert spliceable({"detector": "floor", "limit": 20}, p) == "smoke run, not a measurement"
+
+
+def test_report_draws_valid_svg_and_resolvable_links():
+    """A page whose figures do not parse, or whose links point nowhere, is worse than no page:
+    it looks like a result. Runs the whole path on a synthetic result."""
+    import re
+    import xml.etree.ElementTree as ET
+    from proba import figures as fg
+    from proba.report import build_figures, render_md
+
+    cells = {f"{f}/{a}": {"hits": 4, "n": 8, "recall": 0.5, "ci": (0.2, 0.8)}
+             for f in ("bare", "guard") for a in ("deny", "disclose")}
+    res = {
+        "detector": "t", "display": "t", "dataset": "abc", "slice": "all",
+        "policy": "chunk", "window": 2000, "overlap": 4, "binary": False,
+        "n_positives": 32, "n_negatives": 64, "n_cells": len(cells),
+        "mean_recall": 0.5, "mean_ci": (0.3, 0.7), "coverage_50": 0.5,
+        "attainable_range": [0.5, 0.5], "fpr_pooled": 0.001,
+        "worst_family": {"name": "bare", "recall": 0.5, "ci": (0.2, 0.8)},
+        "worst_action": {"name": "deny", "recall": 0.5, "ci": (0.2, 0.8)},
+        "cells": cells, "cells_by_host": {"cards": cells},
+        "marginals": {"family": {"bare": {"recall": 0.5, "n": 16, "ci": (0.2, 0.8)}}},
+        "_file": "t.json",
+    }
+    res["points"] = {"0.001": dict(res), "0.01": dict(res)}
+
+    tmp = Path(tempfile.mkdtemp())
+    figs = build_figures(res, tmp, "auto", "t")
+    assert figs, "no figures were drawn"
+    for rel in figs.values():
+        f = tmp / rel
+        assert f.exists(), f"{rel} was referenced but not written"
+        svg = f.read_text(encoding="utf-8")
+        ET.fromstring(svg)              # parses as XML
+        fg.check(svg)                   # and passes the drawing module's own check
+
+    md = render_md(res, figs)
+    for rel in re.findall(r'!\[[^\]]*\]\(([^)]+)\)', md):
+        assert (tmp / rel).exists(), f"broken image link in the page: {rel}"
+    assert "32 of them" in md, "the page must say what the recall is a share OF"
