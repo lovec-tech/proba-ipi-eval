@@ -96,3 +96,40 @@ def test_cli_runs_end_to_end(tmp_path=None):
     assert res["mean_recall"] == 1.0, "the floor must catch its own quoted phrase"
     scores = out / (files[0].stem + ".scores.jsonl")
     assert sum(1 for _ in scores.open()) == 108, "every document must have a saved score"
+
+
+def test_compare_rethresholds_scored_but_not_binary():
+    """The reason `--against <binary>` exists.
+
+    A binary detector fires at whatever rate it fires at; a scored one can be re-cut to that rate.
+    Reading them in one column only means something if the scored side actually moves — here the
+    same detector must show a LOWER recall at the tighter budget."""
+    from proba.metrics import threshold_at_fpr
+    neg = [0.001 * i for i in range(1000)]
+    pos = [0.995, 0.980, 0.960, 0.900]
+    tight = threshold_at_fpr(neg, 0.002)
+    loose = threshold_at_fpr(neg, 0.05)
+    assert tight > loose, "a smaller budget must give a higher threshold"
+    hits_tight = sum(1 for s in pos if s >= tight)
+    hits_loose = sum(1 for s in pos if s >= loose)
+    assert hits_tight <= hits_loose
+
+
+def test_rescore_refuses_a_run_from_another_corpus():
+    """Splicing rests on 'text unchanged -> score unchanged', which says nothing about a run
+    measured elsewhere: its untouched documents were different documents."""
+    from proba.rescore import spliceable
+    import pathlib
+    missing = pathlib.Path("/nonexistent/scores.jsonl")
+    assert spliceable({"detector": "floor"}, missing) == "scores were not saved"
+
+
+def test_rescore_skips_an_unregistered_adapter():
+    """A run whose detector has no adapter cannot be re-scored — there is nothing to score with."""
+    from proba.rescore import spliceable
+    from proba.detector import load_detectors
+    import tempfile, pathlib
+    load_detectors([])                      # the registry check runs before the limit check
+    p = pathlib.Path(tempfile.mkstemp(suffix=".jsonl")[1])
+    assert spliceable({"detector": "no-such-detector"}, p) == "no adapter in the registry"
+    assert spliceable({"detector": "floor", "limit": 20}, p) == "smoke run, not a measurement"

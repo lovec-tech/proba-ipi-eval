@@ -45,6 +45,8 @@ testpaths = ["tests"]
 proba-run = "proba.run:main"
 proba-table = "proba.table:main"
 proba-ingest = "proba.ingest:main"
+proba-compare = "proba.compare:main"
+proba-rescore = "proba.rescore:main"
 
 [build-system]
 requires = ["hatchling"]
