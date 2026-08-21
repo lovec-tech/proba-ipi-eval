@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""Render the dataset card's tables from the results directory, in Markdown.
+
+    python3 -m proba.table --results eval-out/results
+
+The card's numbers should be produced by the tool the card tells people to run, not typed by
+hand beside it. Everything here reads `results/*.json` — no model, no corpus text, no scores
+file — so regenerating the card after an operating point moves costs a second.
+
+ONE ROW PER DETECTOR, newest run wins. Several runs of one detector can sit in the directory
+(an aperture experiment, a re-import); the table takes the most recent per detector and says so,
+rather than silently averaging two protocols into one row.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import pathlib
+
+from .paths import RESULTS as OUT
+
+#: shown as a row in the headline table but measured differently — a trained model on a
+#: formulation-level split, so it is not read from `results/` and is labelled in place.
+TRIVIAL = {"name": "trivial baseline (character n-grams)", "p01": 21.4, "p1": 53.3}
+
+#: the EN side, read off quadrat-ipi's own published results at the SAME convention:
+#: all 16,800 positives, one pooled threshold, chunk-2000 aperture.
+EN = {"proventra": (15.0, 42.3), "bastion": (30.2, 50.6), "piguard": (17.4, 56.9),
+      "protectai": (3.5, 14.8), "deepset": (1.4, 7.3)}
+EN_KIND = {"proventra": "mDeBERTa, **multilingual**", "bastion": "English DeBERTa",
+           "piguard": "English DeBERTa", "protectai": "English DeBERTa",
+           "deepset": "English DeBERTa"}
+
+
+def latest(results: pathlib.Path) -> dict[str, dict]:
+    out: dict[str, dict] = {}
+    for f in sorted(results.glob("*.json")):
+        try:
+            r = json.loads(f.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        if "mean_recall" not in r:
+            continue
+        d = r.get("detector")
+        if d not in out or r.get("run_at", "") >= out[d].get("run_at", ""):
+            r["_file"] = f.name
+            out[d] = r
+    return out
+
+
+def pt(r, target, key="mean_recall"):
+    p = (r.get("points") or {}).get(target)
+    return (p or r)[key] * 100
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--results", default=str(OUT))
+    ap.add_argument("--levers", type=int, default=3, help="detectors in the blind-spot table")
+    a = ap.parse_args()
+
+    runs = latest(pathlib.Path(a.results))
+    if not runs:
+        raise SystemExit(f"no results in {a.results}")
+    order = sorted(runs, key=lambda d: -pt(runs[d], "0.001"))
+
+    print("## What is measured\n")
+    print("| detector | recall @0.1% | cells @0.1% | recall @1% | cells @1% |")
+    print("|---|---:|---:|---:|---:|")
+    placed = False
+    for d in order:
+        r = runs[d]
+        rec01 = pt(r, "0.001")
+        if not placed and rec01 < TRIVIAL["p01"]:
+            print(f"| *{TRIVIAL['name']}* | *{TRIVIAL['p01']}%* | — | *{TRIVIAL['p1']}%* | — |")
+            placed = True
+        cov01 = pt(r, "0.001", "coverage_50")
+        rec1 = pt(r, "0.01")
+        cov1 = pt(r, "0.01", "coverage_50")
+        name = f"**{d}**" if d == "promptidote" else f"`{r.get('display') or d}`"
+        em = "**" if d == "promptidote" else ""
+        print(f"| {name} | {em}{rec01:.1f}%{em} | {em}{cov01:.0f}%{em} "
+              f"| {em}{rec1:.1f}%{em} | {em}{cov1:.0f}%{em} |")
+    if not placed:
+        print(f"| *{TRIVIAL['name']}* | *{TRIVIAL['p01']}%* | — | *{TRIVIAL['p1']}%* | — |")
+
+    print("\n## What transfers across languages\n")
+    print("| detector | EN @0.1% | RU @0.1% | EN @1% | RU @1% |")
+    print("|---|---:|---:|---:|---:|")
+    for d in sorted(EN, key=lambda x: -EN[x][0]):
+        if d not in runs:
+            continue
+        e0, e1 = EN[d]
+        print(f"| `{d}` — {EN_KIND[d]} | {e0:.1f}% | **{pt(runs[d],'0.001'):.1f}%** "
+              f"| {e1:.1f}% | **{pt(runs[d],'0.01'):.1f}%** |")
+
+    top = order[:a.levers]
+    print("\n## Blind spots\n")
+    print("By lever, three carriers pooled, single threshold, at 0.1% FPR:\n")
+    print("| lever | " + " | ".join(runs[d].get("display") or d for d in top) + " |")
+    print("|---" * (len(top) + 1) + "|")
+    levers = sorted({k for d in top for k in
+                     ((runs[d].get("points", {}).get("0.001") or runs[d])
+                      .get("marginals", {}).get("family", {}))})
+    rows = []
+    for lev in levers:
+        vals = []
+        for d in top:
+            m = ((runs[d].get("points", {}).get("0.001") or runs[d])
+                 .get("marginals", {}).get("family", {})).get(lev)
+            vals.append(m["recall"] * 100 if m else None)
+        rows.append((lev, vals))
+    rows.sort(key=lambda kv: -(kv[1][0] or 0))
+    for lev, vals in rows:
+        cells = " | ".join(f"{v:.1f}%" if v is not None else "—" for v in vals)
+        print(f"| `{lev}` | {cells} |")
+
+    print("\n<sub>generated by `python3 -m proba.table` from "
+          + ", ".join(sorted(runs[d]["_file"] for d in top)) + " …</sub>")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

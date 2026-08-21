@@ -1,0 +1,54 @@
+[project]
+name = "proba-ipi-eval"
+version = "0.1.0"
+description = "Run any prompt-injection detector over the proba-ipi Russian corpus and get a report comparable with quadrat-ipi"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+keywords = ["prompt-injection", "evaluation", "llm-security", "russian"]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Topic :: Security",
+    "Natural Language :: Russian",
+]
+
+# CORE, and each one for a reason a reader can check.
+#
+# `huggingface_hub` fetches the corpus on first run, so the harness works from a bare clone.
+#
+# `blingfire` is deliberately NOT core here, which is where this differs from quadrat-ipi-eval.
+# There it is core because its absence silently changes the sentence split and therefore the
+# scores. On Russian the same reasoning points the other way: the published proba-ipi numbers were
+# taken with blingfire absent, so installing it by default would make a fresh run disagree with
+# the table it is meant to reproduce. Which splitter actually ran is recorded in every result
+# (`segmenter`), and the effect is bounded: 142 of 16,800 injections sit across a window boundary
+# at all, and 80% of injected documents are shorter than one window.
+dependencies = [
+    "huggingface_hub>=0.23",
+]
+
+[project.optional-dependencies]
+# The adapters, grouped by what they need. Measuring one hosted detector should not pull down a
+# deep-learning stack, so nothing here is installed by default.
+local = ["torch>=2.0", "transformers>=4.40"]
+# Only if you want the sentence-aligned split instead of the one the published table used.
+segment = ["blingfire>=0.1.8"]
+all = ["torch>=2.0", "transformers>=4.40", "blingfire>=0.1.8"]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[project.scripts]
+proba-run = "proba.run:main"
+proba-table = "proba.table:main"
+proba-ingest = "proba.ingest:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["proba"]

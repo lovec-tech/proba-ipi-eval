@@ -1,0 +1,24 @@
+proba-ipi-eval
+Copyright 2026 Anton Kiriltsev
+
+This product includes software developed for the Quadrat-IPI evaluation harness:
+
+    quadrat-ipi-eval
+    Copyright 2026 Mihail Gribov
+    https://github.com/mihail-gribov/quadrat-ipi-eval
+    Licensed under the Apache License, Version 2.0
+
+The following files are taken from that project and carry its copyright:
+
+    proba/metrics.py    unchanged
+    proba/window.py     unchanged
+    proba/detector.py   method code unchanged; the adapter loader's hardcoded
+                        package name replaced with `__package__` so it resolves
+                        under this package's name. No behavioural change.
+
+They are kept unchanged on purpose. The whole claim of this harness is that a
+number it produces on the Russian corpus is comparable with a number quadrat-ipi
+produces on the English one; that only holds while the code deciding where the
+threshold sits, what a cell is, and how an interval is computed is the same code.
+Files outside the list above -- the data layer, the paths, the adapters, the
+importer and the table renderer -- are this project's own.
