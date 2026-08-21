@@ -92,6 +92,32 @@ def at_point(res, budget):
     return res if res.get("target_fpr") == budget else None
 
 
+def curve_points(res):
+    """This run's curve with a confidence interval on every point.
+
+    The intervals are NOT stored in the result and do not need to be: a Wilson interval is a
+    function of the rate and the count, both of which are already there, so they cost arithmetic
+    rather than another pass over the corpus. Without them a line reads as exact, and two lines a
+    point apart look like a difference when they are not one."""
+    n_pos, n_neg = res.get("n_positives", 0), res.get("n_negatives", 0)
+    out = []
+    for p in res.get("curve") or []:
+        q = dict(p)
+        if n_pos:
+            q["ci"] = wilson(round(p["recall"] * n_pos), n_pos)
+        if n_neg:
+            q["fpr_ci"] = wilson(round(p["fpr"] * n_neg), n_neg)
+        out.append(q)
+    return out
+
+
+def binary_mark(res, colour=None):
+    """A binary detector as one point with whiskers — it has no curve to interpolate through."""
+    return (f'{res.get("display") or res.get("detector", "binary")} — own point',
+            res.get("fpr_pooled", 0.0), res.get("mean_recall", 0.0),
+            res.get("fpr_pooled_ci"), res.get("mean_ci"), None)
+
+
 def cell_axes(cells):
     """(levers, objectives) in a fixed order, so every panel is drawn on the same axes.
 
@@ -163,6 +189,15 @@ def build_figures(res, out_dir, theme, slug, floor=None):
             figs[f"cells:{h}"] = fg.save(fg.heat(
                 by_host[h], fams, acts, h, sub=CARRIER_NOTE.get(h, ""), theme=theme,
                 margins=False), out_dir, f"{slug}-cells-{h}")
+
+    pts = curve_points(res)
+    if pts:
+        marks = [binary_mark(floor)] if floor and floor.get("binary") else []
+        figs["curve"] = fg.save(
+            fg.curve([(res.get("display") or res["detector"], pts, fg.LINE_COLORS[0])],
+                     theme=theme, marks=marks,
+                     unresolved=(1.0 / res["n_negatives"]) if res.get("n_negatives") else None),
+            out_dir, f"{slug}-curve")
 
     for axis in MARGINALS:
         m = (a.get("marginals") or {}).get(axis) or {}
@@ -246,6 +281,17 @@ def render_md(res, figs, floor=None):
         L += ["A cell missing from a carrier is structure, not a gap in the data: a third of the "
               "grid is built in one carrier only.", ""]
 
+    if "curve" in figs:
+        L += ["## The whole trade-off, not a point", "",
+              f"![recall against the false-positive budget]({figs['curve']})", "",
+              "Recall as a function of what a false alarm is allowed to cost, log-x because the "
+              "question lives in the first decade: between 0.01% and 0.1% false alarms is the "
+              "difference between a filter that can run on a firehose and one that cannot. The "
+              "band is the 95% interval; the shaded strip on the left is below what "
+              f"{res['n_negatives']} clean documents can express at all — a rate resting on a "
+              "handful of false alarms is not a rate. A line can step sideways where ties at the "
+              "cut move the realised rate without moving recall.", ""]
+
     for axis, (heading, note) in MARGINALS.items():
         key = f"marg:{axis}"
         if key in figs:
@@ -317,6 +363,21 @@ def main() -> int:
     # An index, because a directory of slugs is not a table of contents: the reader wants to
     # know which page to open, and that decision is made on the headline numbers.
     if written:
+        # ONE SHARED CURVE, and it is the figure the index exists for. A ranking at 0.1% cannot
+        # say whether a detector is behind everywhere or only at the budget somebody chose, and
+        # those are different findings. Scored detectors are lines; a binary one is a point with
+        # whiskers, because interpolating through it would invent a budget it does not offer.
+        scored = sorted((r for r in runs.values() if not r.get("binary") and r.get("curve")),
+                        key=lambda r: -(at_point(r, 0.001) or r)["mean_recall"])
+        series = [((r.get("display") or r["detector"]), curve_points(r),
+                   fg.LINE_COLORS[i % len(fg.LINE_COLORS)])
+                  for i, r in enumerate(scored)]
+        marks = [binary_mark(r) for r in runs.values() if r.get("binary")]
+        n_neg = next((r.get("n_negatives") for r in runs.values() if r.get("n_negatives")), None)
+        shared = fg.save(fg.curve(series, theme=a.theme, marks=marks,
+                                  unresolved=(1.0 / n_neg) if n_neg else None),
+                         out, "comparison-curve")
+
         rows = sorted(((r.get("display") or d, d, r) for d, r in runs.items()
                        if not want or d in want),
                       key=lambda x: -((at_point(x[2], 0.001) or x[2])["mean_recall"]))
@@ -324,6 +385,15 @@ def main() -> int:
              "One page each. Recall is over all "
              f"{rows[0][2]['n_positives']} injections, at a single threshold over the whole "
              f"clean pool — see any page for what that costs.", "",
+             (f"![recall against the false-positive budget, every detector]({shared})\n"
+              if shared else ""),
+             ("Every detector on one axis, because a ranking at a single budget cannot say "
+              "whether one is behind everywhere or only where somebody set the threshold. On this "
+              "corpus the order of the three working detectors holds across the whole range — what "
+              "changes is how much each one buys with the extra budget, and they differ by more "
+              "than the gaps between them at either end. The only crossings are between "
+              "English-only models at recalls too small for a swap to mean anything.\n"
+              if shared else ""),
              "| detector | @0.1% FPR | @1% FPR | cells @0.1% | page |",
              "|---|---:|---:|---:|---|"]
         for label, det, r in rows:
