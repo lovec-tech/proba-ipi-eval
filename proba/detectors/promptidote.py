@@ -41,6 +41,10 @@ RETRIES = 4
 class Promptidote(Detector):
     display = "promptidote"
     max_chars = API_MAX_CHARS
+    #: read by the runner, which refuses to start without --allow-offmachine. Declared here
+    #: because this adapter is the thing that performs the transfer.
+    sends_text_offmachine = True
+    endpoint = ENDPOINT
     notes = f"hosted API · {ENDPOINT} · window {API_MAX_CHARS} chars, folded by max"
 
     def setup(self):

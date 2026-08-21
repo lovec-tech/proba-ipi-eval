@@ -166,6 +166,8 @@ def main():
                     help="directory of detector adapters to load (repeatable)")
     ap.add_argument("--skip-if-done", action="store_true",
                     help="exit early if this exact pass was already measured on this dataset")
+    ap.add_argument("--allow-offmachine", action="store_true",
+                    help="required to run a detector that sends document text to a third party")
     ap.add_argument("--list", action="store_true")
     args = ap.parse_args()
 
@@ -205,6 +207,8 @@ def main():
                 "forced_aperture": forced, "limit": args.limit,
                 # part of the aperture, not a footnote — see segmenter()
                 "segmenter": segmenter() if policy != "full" else None,
+                # recorded, so a row taken by shipping text out is never mistaken for a local one
+                "offmachine": bool(getattr(det, "sends_text_offmachine", False)),
                 "dataset": fingerprint(args.data)}
     if args.skip_if_done:
         for prior in out_dir.glob(f"{args.detector}-*.json"):
@@ -230,6 +234,19 @@ def main():
             f"[{args.detector}] accepts at most {limit} chars per document, but "
             f"{'the whole document' if policy == 'full' else window} was asked for.\n"
             f"  Drop --window (the detector cuts its own) or ask for at most {limit}.")
+
+    # A detector that ships text to somebody else's service is a transfer of the corpus, not just
+    # a measurement of it. The carriers here are scrubbed before publication, but our own licence
+    # says that scrubbing is not guaranteed complete — so the decision is made explicitly, by the
+    # person running the pass, rather than implied by their choice of adapter.
+    if getattr(det, "sends_text_offmachine", False) and not args.allow_offmachine:
+        raise SystemExit(
+            f"[{args.detector}] sends every document to a third-party service "
+            f"({getattr(det, 'endpoint', 'a remote API')}).\n"
+            f"  That is a transfer of this corpus to someone else, separate from measuring on it.\n"
+            f"  The carriers are scrubbed of contacts before publication and the scrubbing is\n"
+            f"  checked by pattern search over the whole corpus, but it is not guaranteed complete.\n"
+            f"  Pass --allow-offmachine to proceed.")
 
     det.settings = settings
     det.setup()
