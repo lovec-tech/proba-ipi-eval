@@ -10,11 +10,20 @@ This product includes software developed for the Quadrat-IPI evaluation harness:
 
 The following files are taken from that project and carry its copyright:
 
-    proba/metrics.py    unchanged
-    proba/window.py     unchanged
-    proba/detector.py   method code unchanged; the adapter loader's hardcoded
-                        package name replaced with `__package__` so it resolves
-                        under this package's name. No behavioural change.
+    proba/metrics.py    byte-identical to upstream (verified by diff)
+    proba/window.py     code byte-identical; one docstring line names this
+                        package instead of upstream's in its usage example
+    proba/detector.py   code identical except the adapter loader, which
+                        imported `quadrat.detectors.*` by hardcoded name and
+                        now resolves `__package__`; the dynamically loaded
+                        adapter module gets a `proba_adapter_` prefix instead
+                        of `quadrat_adapter_`. Two further changes are in
+                        docstrings only (usage example, directory name).
+                        No behavioural change.
+
+Each file carries a header stating what was and was not changed. The claim is
+checkable: fetch the upstream file and diff it against ours with the four-line
+provenance header removed.
 
 They are kept unchanged on purpose. The whole claim of this harness is that a
 number it produces on the Russian corpus is comparable with a number quadrat-ipi

@@ -1,5 +1,5 @@
-# Vendored verbatim from mihail-gribov/quadrat-ipi-eval (Apache-2.0).
-# Method-level code, kept byte-for-byte so RU numbers are comparable to his EN table.
+# Vendored from mihail-gribov/quadrat-ipi-eval (Apache-2.0).
+# Code byte-identical to upstream; one docstring line names this package in its example.
 # Changes here would break that guarantee — edit data.py / paths.py / detectors/ instead.
 # See NOTICE for attribution.
 
