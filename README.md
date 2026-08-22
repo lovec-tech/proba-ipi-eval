@@ -16,6 +16,23 @@ The corpus is [privettoha/proba-ipi](https://huggingface.co/datasets/privettoha/
 injected and 81,000 clean Russian documents on a 92-cell grid of 10 levers × 10 objectives. It is
 fetched on first run at a pinned tag.
 
+## Who publishes this
+
+This repository belongs to **promptidote**, and one of the eight adapters here is promptidote's
+own commercial detector — which comes top of the table it is measured in. That is a conflict of
+interest, so it is stated here rather than left to be inferred from the URL.
+
+What is done about it is the only thing that can be: make the claims checkable without trusting
+us. The code that chooses the threshold, defines a cell and computes an interval is
+[somebody else's](https://github.com/mihail-gribov/quadrat-ipi-eval), used unchanged and diffable
+against upstream (see `NOTICE`). The grid was designed for a different corpus before our detector
+was measured on it. Every detector's per-document scores ship with the dataset, so any number can
+be recomputed — or contradicted — from the files themselves. And the adapter for our own detector
+is held to the same rules as everyone else's: it declares its aperture, it may not binarise its
+score, and it stops the run rather than filing a zero when the service errors.
+
+Measure your own detector and publish the row. That is what the harness is for.
+
 ## Why the measurement code is someone else's, unchanged
 
 `metrics.py` and `window.py` are taken from
