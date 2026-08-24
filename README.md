@@ -1,5 +1,7 @@
 # proba-ipi-eval — the evaluation harness
 
+English · [Русский](README_rus.md)
+
 **Write one class. Get a report for your prompt-injection detector on Russian documents that is
 comparable, line for line, with every other detector measured on the same corpus — and with the
 English numbers from [Quadrat-IPI](https://huggingface.co/datasets/mihailgribov/quadrat-ipi).**
