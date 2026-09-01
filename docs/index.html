@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>proba-ipi — бенчмарк детекторов промпт-инъекций на русском</title>
+<meta name="description" content="Восемь прогонов на одном корпусе: 16 800 русских документов с непрямой промпт-инъекцией и 81 000 чистых, сетка из 92 типов атак, зеркало Quadrat-IPI.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="proba-ipi — бенчмарк детекторов промпт-инъекций на русском">
+<meta property="og:description" content="Восемь прогонов на одном корпусе: 16 800 русских документов с непрямой промпт-инъекцией и 81 000 чистых, сетка из 92 типов атак.">
+<meta property="og:url" content="https://lovec-tech.github.io/proba-ipi-eval/">
+<meta name="twitter:card" content="summary">
+<style>
+:root{
+  --measure: 44rem;
+  --page:#fbfaf7; --sunken:#f3f1e9; --ink:#191919; --mut:#78746c;
+  --line:#e2ded2; --hair:#eae7dd; --accent:#8a5a2b; --heat:#184f95;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --page:#141510; --sunken:#1c1d16; --ink:#eceae2; --mut:#98958c;
+    --line:#33342b; --hair:#26271f; --accent:#d4a373; --heat:#9ec5f4;
+    color-scheme: dark;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--page); color:var(--ink);
+  font:400 17px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  font-feature-settings:"kern" 1; text-rendering:optimizeLegibility;
+  counter-reset:sec;
+}
+a{color:inherit; text-decoration-color:var(--accent); text-underline-offset:3px}
+a:hover{color:var(--accent)}
+code{font:0.88em/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:var(--accent)}
+
+.bar{
+  position:sticky; top:0; z-index:9; background:var(--page);
+  border-bottom:1px solid var(--hair); backdrop-filter:saturate(140%) blur(6px);
+}
+.bar .in{
+  max-width:calc(var(--measure) + 3rem); margin:0 auto; padding:.7rem 1.5rem;
+  display:flex; gap:1rem; align-items:baseline; justify-content:space-between;
+}
+.bar b{font-weight:600; letter-spacing:.01em}
+.bar nav{display:flex; gap:1.1rem; font-size:.82rem; color:var(--mut)}
+.bar nav a{text-decoration:none}
+
+.wrap{max-width:calc(var(--measure) + 3rem); margin:0 auto; padding:0 1.5rem 6rem}
+
+header.lead{padding:4rem 0 2.5rem; border-bottom:1px solid var(--line)}
+h1{font-size:clamp(2rem,5.5vw,2.9rem); line-height:1.1; margin:0 0 1rem; letter-spacing:-.02em; font-weight:600}
+.sub{font-size:1.12rem; color:var(--mut); margin:0; max-width:34rem}
+.stamp{margin-top:1.6rem; font-size:.82rem; color:var(--mut)}
+.stamp a{text-decoration-color:var(--line)}
+
+.toc{margin:2.5rem 0 0; padding:0; list-style:none; font-size:.92rem; column-gap:2rem}
+.toc li{padding:.28rem 0; border-bottom:1px solid var(--hair)}
+.toc a{text-decoration:none; color:var(--mut); display:flex; gap:.7rem}
+.toc a:hover{color:var(--accent)}
+.toc .k{color:var(--accent); font-variant-numeric:tabular-nums; min-width:1.2rem}
+
+section{padding-top:3.2rem; scroll-margin-top:4rem}
+h2{
+  font-size:1.42rem; font-weight:600; letter-spacing:-.01em; margin:0 0 1rem;
+  display:flex; gap:.8rem; align-items:baseline;
+}
+h2::before{
+  counter-increment:sec; content:counter(sec);
+  font-size:.78rem; color:var(--accent); font-variant-numeric:tabular-nums;
+  font-weight:500; padding-top:.2rem;
+}
+h3{font-size:1.02rem; font-weight:600; margin:2.2rem 0 .7rem}
+p{margin:0 0 1.1rem}
+p.note{color:var(--mut); font-size:.92rem}
+strong{font-weight:600}
+ul{margin:0 0 1.1rem; padding-left:1.1rem}
+li{margin:.35rem 0}
+
+.callout{
+  border-left:2px solid var(--accent); background:var(--sunken);
+  padding:1.2rem 1.4rem; margin:0 0 1.4rem; border-radius:0 3px 3px 0;
+}
+.callout p:last-child{margin-bottom:0}
+.callout .tag{
+  display:block; font-size:.72rem; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--accent); margin-bottom:.6rem; font-weight:600;
+}
+
+.scroll{overflow-x:auto; margin:0 0 1.4rem; -webkit-overflow-scrolling:touch}
+table{border-collapse:collapse; width:100%; font-size:.92rem; min-width:30rem}
+table.facts, table.gl{min-width:24rem}
+th,td{padding:.55rem .7rem; text-align:left; border-bottom:1px solid var(--hair); vertical-align:top}
+thead th{
+  font-size:.74rem; letter-spacing:.06em; text-transform:uppercase; color:var(--mut);
+  font-weight:600; border-bottom:1px solid var(--line); white-space:nowrap;
+}
+td.n,th.n{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+tr.ours td{background:var(--sunken)}
+tr.base td{color:var(--mut)}
+td em,.em{font-style:normal; color:var(--accent)}
+.gloss{display:block; font-size:.78rem; color:var(--mut); font-weight:400; margin-top:.1rem}
+table.facts td:first-child{color:var(--mut); width:38%}
+
+figure{
+  margin:1.8rem 0 1.6rem;
+  width:min(61rem, calc(100vw - 3rem));
+  position:relative; left:50%; transform:translateX(-50%);
+}
+figure .frame{overflow-x:auto; border:1px solid var(--hair); border-radius:3px; background:var(--page)}
+figure img{display:block; width:100%; min-width:34rem; height:auto}
+figcaption{font-size:.85rem; color:var(--mut); margin-top:.7rem; max-width:44rem}
+
+pre{
+  background:var(--sunken); border:1px solid var(--hair); border-radius:3px;
+  padding:.9rem 1.1rem; overflow-x:auto; margin:0 0 1.4rem;
+  font:0.85rem/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+pre code{color:var(--ink)}
+.files{white-space:pre; font:0.82rem/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+footer{
+  margin-top:4.5rem; padding-top:1.5rem; border-top:1px solid var(--line);
+  font-size:.85rem; color:var(--mut);
+}
+@media (max-width:640px){
+  body{font-size:16px}
+  header.lead{padding:2.5rem 0 2rem}
+  figure img{min-width:30rem}
+}
+</style>
+</head>
+<body>
+<div class="bar"><div class="in">
+<b>proba-ipi</b>
+<nav>
+<a href="https://huggingface.co/datasets/privettoha/proba-ipi">корпус</a>
+<a href="https://github.com/lovec-tech/proba-ipi-eval">харнесс</a>
+<a href="https://github.com/lovec-tech/proba-ipi-eval#readme">README</a>
+</nav>
+</div></div>
+
+<div class="wrap">
+<header class="lead">
+<h1>Детекторы промпт-инъекций на русском: что показал прогон</h1>
+<p class="sub">Восемь прогонов на одном корпусе — 16 800
+документов с непрямой инъекцией и 81 000 чистых,
+на сетке из 92 типов атак, скопированной у английского
+Quadrat-IPI без изменений.</p>
+<p class="stamp">Прогон 21 августа 2026 · корпус
+<a href="https://huggingface.co/datasets/privettoha/proba-ipi">privettoha/proba-ipi</a> · харнесс
+<a href="https://github.com/lovec-tech/proba-ipi-eval">lovec-tech/proba-ipi-eval</a></p>
+<ul class="toc">
+<li><a href="#chto-eto"><span class="k">1</span><span>Что это</span></a></li>
+<li><a href="#coi"><span class="k">2</span><span>Кто это публикует</span></a></li>
+<li><a href="#chto-merim"><span class="k">3</span><span>Что именно измеряется</span></a></li>
+<li><a href="#rezultaty"><span class="k">4</span><span>Результаты</span></a></li>
+<li><a href="#poly"><span class="k">5</span><span>Два дна, и они отвечают на разные вопросы</span></a></li>
+<li><a href="#yazyk"><span class="k">6</span><span>Что переносится между языками</span></a></li>
+<li><a href="#slepye-zony"><span class="k">7</span><span>Слепые зоны</span></a></li>
+<li><a href="#svoj-detektor"><span class="k">8</span><span>Как измерить свой детектор</span></a></li>
+<li><a href="#korpus"><span class="k">9</span><span>Как устроен корпус</span></a></li>
+<li><a href="#ogranicheniya"><span class="k">10</span><span>Ограничения</span></a></li>
+<li><a href="#licenzii"><span class="k">11</span><span>Лицензии и dual use</span></a></li>
+<li><a href="#fajly"><span class="k">12</span><span>Файлы и воспроизводимость</span></a></li>
+</ul>
+</header>
+
+<section id="chto-eto">
+<h2>Что это</h2>
+<p>Мы собрали корпус для проверки детекторов непрямой промпт-инъекции на русском языке
+и прогнали через него всё, до чего дотянулись: семь детекторов и regex floor. Это страница
+о том, что получилось.</p>
+
+<p><strong>Непрямая инъекция</strong> — это когда инструкция для модели лежит не в реплике
+пользователя, а в документе, который агент прочитал по дороге: в карточке товара, в отзыве,
+на веб-странице. Пользователь её не писал и обычно не видит.</p>
+
+<div class="scroll"><table class="facts"><tbody>
+<tr><td>документов с инъекцией</td><td>16 800</td></tr>
+<tr><td>чистых документов</td><td>81 000</td></tr>
+<tr><td>носители</td><td>карточки товаров · отзывы · веб-страницы, три русских источника</td></tr>
+<tr><td>типов атак</td><td><strong>92</strong> заполненные ячейки — 10 рычагов × 10 целей, по 80 или 240 примеров в ячейке</td></tr>
+<tr><td>рабочие точки</td><td>0,1% и 1% FPR, один порог на весь чистый пул</td></tr>
+<tr><td>измерено детекторов</td><td>7, плюс regex floor — итого 8 прогонов</td></tr>
+<tr><td>знаменатель recall</td><td>все 16 800 инъекций, включая quota fill</td></tr>
+<tr><td>сборка корпуса</td><td><code>4adb4983c541d527</code></td></tr>
+</tbody></table></div>
+
+<p><a href="https://huggingface.co/datasets/mihailgribov/quadrat-ipi">Quadrat-IPI</a> — английский корпус того же устройства;
+здесь он всё время рядом как точка отсчёта. Сетка
+из 92 типов атак, протокол размещения и пропорции скопированы у него
+без изменений: те же десять рычагов, те же десять
+целей, те же 92 допустимые ячейки, те же глубины ячеек, то же правило,
+куда девать отвергнутого кандидата. Не скопирован язык. Носители здесь — русские документы
+маркетплейса вместо почты и офисных файлов, и каждая инъекция написана по-русски,
+а не переведена.</p>
+
+<p>Зачем держать конструкцию неизменной и менять только язык: один и тот же детектор
+можно измерить на английском корпусе и на этом, и тогда разница между двумя цифрами читается
+как разница языков, а не как разница линеек. Одна из измеренных моделей многоязычная,
+и на строгой рабочей точке она укладывается в 1,9 пункта от своего английского результата,
+пока четыре англоязычные теряют от 40 до 170 раз. Оба прочтения — в разделе
+<a href="#yazyk">«Что переносится между языками»</a>, включая то место,
+где русский корпус оказался просто труднее.</p>
+</section>
+<section id="coi">
+<h2>Кто это публикует</h2>
+<div class="callout"><span class="tag">Конфликт интересов</span>
+<p>Первую строку таблицы ниже занимает <code>promptidote</code> — <strong>наш собственный
+коммерческий детектор</strong>. Бенчмарк тоже наш. Мы говорим это до таблицы, а не оставляем
+читателю искать разгадку в доменном имени.</p></div>
+
+<p>Вендорский бенчмарк стоит ровно столько, сколько стоит его проверяемость, поэтому здесь
+перечислено то, что делает его проверяемым, а не предполагается по умолчанию. Порог, ячейку
+и доверительный интервал считает код <a href="https://github.com/mihail-gribov/quadrat-ipi-eval">quadrat-ipi-eval</a>, перенесённый без
+единой правки: любое расхождение видно построчным диффом с апстримом. Сетку спроектировали для другого корпуса
+до того, как на ней измерили наш детектор. Скоры каждого детектора по каждому из документов
+лежат в релизе, так что любую цифру отсюда можно пересчитать или опровергнуть по исходным
+файлам, не запуская ни одной модели и не веря нам на слово. Адаптер нашего детектора живёт
+по тем же правилам, что и остальные семь: объявляет апертуру, не имеет права бинаризовать
+скор и при ошибке сервиса останавливает прогон, а не подставляет ноль.</p>
+
+<p>Если вы найдёте здесь цифру, которая не выдерживает собственного файла со скорами, —
+это тот баг-репорт, который нам нужен.</p>
+</section>
+<section id="chto-merim">
+<h2>Что именно измеряется</h2>
+<p>Recall при заданной частоте ложных срабатываний, <strong>с одним порогом на весь чистый
+пул целиком</strong>, а не отдельным для каждого носителя. У боевой системы одна рабочая
+точка, и она не знает, какой документ читает, пока его не прочитает: порог по носителю
+выдал бы детектору оракула, которого у него на самом деле нет. Поэтому FPR по носителю
+мы показываем всегда, но никогда не фиксируем.</p>
+
+<p>Рабочих точек тоже всегда две. <strong>0,1%</strong> — там, где фильтр документов реально
+стоит в проде. <strong>1%</strong> — там, где приводят большинство опубликованных цифр
+по инъекциям. Они ранжируют детекторы по-разному, так что назвать только одну — уже значит
+выбрать победителя заранее.</p>
+
+<p>Колонка «ячейки» — в скольких из 92 типов атак детектор ловит хотя бы половину.
+Это опубликованная метрика Quadrat-IPI, и она отвечает на другой вопрос, чем средний recall:
+57,8% в среднем можно набрать, забрав половину сетки целиком и не увидев
+вторую.</p>
+
+<p><strong>Знаменатель — все 16 800 инъекций</strong>, включая 14,5%
+quota fill: пейлоады, которыми добивали ячейку до нормы и которые слепой судья не подтвердил.
+Так же считает Quadrat-IPI, а сравнивать два корпуса можно только на одном знаменателе.
+Recall по одним подтверждённым инъекциям доступен как <code>--slice verified</code>
+и у сильных детекторов выше на 2–5 пунктов.</p>
+
+<h3>Чего стоит один порог</h3>
+
+<p>Порог подобран так, чтобы на всём чистом пуле вышло 0,1%. Вот как эти 0,1% распределяются
+по трём носителям у трёх детекторов, которые здесь вообще работают:</p>
+
+<div class="scroll"><table>
+<thead><tr><th>детектор</th><th class="n">весь пул</th><th class="n">карточки товаров</th><th class="n">отзывы</th><th class="n">веб-страницы</th></tr></thead>
+<tbody>
+<tr><td><strong>promptidote</strong></td><td class="n">0,101%</td><td class="n">0,000%</td><td class="n">0,037%</td><td class="n">0,338%</td></tr>
+<tr><td><strong>gbv</strong></td><td class="n">0,101%</td><td class="n">0,077%</td><td class="n">0,010%</td><td class="n">0,267%</td></tr>
+<tr><td><strong>proventra</strong></td><td class="n">0,101%</td><td class="n">0,080%</td><td class="n">0,067%</td><td class="n">0,181%</td></tr>
+</tbody></table></div>
+
+<p>Бюджет выедает веб. Карточки и отзывы короткие и однообразные, на них детектор почти
+не ошибается; веб-страницы длинные и разношёрстные, и там живёт почти вся ложная тревога.
+У promptidote разрыв между лучшим и худшим носителем — от нуля до
+0,338%. Клиенту с потоком веб-документов средняя цифра обещает
+не то, что он получит, и это ровно та причина, по которой порог здесь не подбирается
+по носителю.</p>
+</section>
+<section id="rezultaty">
+<h2>Результаты</h2>
+<div class="scroll"><table>
+<thead><tr><th>детектор</th><th class="n">recall @0,1%</th><th class="n">ячейки @0,1%</th>
+<th class="n">recall @1%</th><th class="n">ячейки @1%</th></tr></thead>
+<tbody>
+<tr class="ours"><td><strong>promptidote</strong> <span class="gloss">наш коммерческий детектор</span></td><td class="n">57,8%</td><td class="n">63 из 92</td><td class="n">76,1%</td><td class="n">91 из 92</td></tr>
+<tr class=""><td><strong>gbv</strong> <span class="gloss">gbv/mdeberta-ru-prompt-injection</span></td><td class="n">37,7%</td><td class="n">18 из 92</td><td class="n">64,7%</td><td class="n">84 из 92</td></tr>
+<tr class="base"><td>тривиальный базлайн <span class="gloss">символьные n-граммы</span></td><td class="n"><em>21,4%</em></td><td class="n">&mdash;</td><td class="n"><em>53,3%</em></td><td class="n">&mdash;</td></tr>
+<tr class=""><td><strong>proventra</strong> <span class="gloss">proventra/mdeberta-v3-base-prompt-injection</span></td><td class="n">13,1%</td><td class="n">0 из 92</td><td class="n">34,9%</td><td class="n">14 из 92</td></tr>
+<tr class="base"><td>regex floor <span class="gloss">горстка цитируемых фраз</span></td><td class="n"><em>3,4%</em></td><td class="n">0 из 92</td><td class="n">&mdash;</td><td class="n">&mdash;</td></tr>
+<tr class=""><td><strong>bastion</strong> <span class="gloss">bastionsoft/binary-bastion-prompt-protection-deberta-v3-xsmall-v1</span></td><td class="n">0,7%</td><td class="n">0 из 92</td><td class="n">1,3%</td><td class="n">0 из 92</td></tr>
+<tr class=""><td><strong>protectai</strong> <span class="gloss">protectai/deberta-v3-base-prompt-injection-v2</span></td><td class="n">0,2%</td><td class="n">0 из 92</td><td class="n">1,0%</td><td class="n">0 из 92</td></tr>
+<tr class=""><td><strong>piguard</strong> <span class="gloss">leolee99/PIGuard</span></td><td class="n">0,1%</td><td class="n">0 из 92</td><td class="n">0,9%</td><td class="n">0 из 92</td></tr>
+<tr class=""><td><strong>deepset</strong> <span class="gloss">deepset/deberta-v3-base-injection</span></td><td class="n">0,1%</td><td class="n">0 из 92</td><td class="n">0,4%</td><td class="n">0 из 92</td></tr>
+</tbody></table></div>
+
+<figure><div class="frame"><img src="figures/comparison-curve.svg" alt="recall против бюджета ложных срабатываний" loading="lazy"></div><figcaption>Каждый детектор на всей оси, а не в одной точке. Ранжирование при одном бюджете не может сказать, отстаёт детектор везде или только там, где кто-то поставил порог. Порядок трёх работающих детекторов держится на всём диапазоне; меняется то, сколько каждый покупает на дополнительный бюджет. Пересечения есть только между англоязычными моделями, на recall, где перестановка уже ничего не значит.</figcaption></figure>
+
+<p>Работают трое. <code>promptidote</code> берёт 57,8% на строгой точке
+и 76,1% на мягкой, <code>gbv</code> — единственная открытая модель,
+обученная на русском, — идёт следом, <code>proventra</code> держится за счёт многоязычности.
+Остальные четыре модели англоязычные и на русском тексте не видят практически ничего:
+их токенизатор не знает кириллицы, и разбирать их результат как качество детектора нельзя.
+Что с ними происходит и почему это отдельный факт, а не строка в общем зачёте, —
+в разделе <a href="#yazyk">про язык</a>.</p>
+
+<p>Вторую колонку надо читать вместе с первой. Одна и та же система на двух ценах — это
+две разные системы для того, кто разбирает очередь алертов. У <code>promptidote</code> между
+ними 18 пунктов recall и десятикратная разница в количестве ложных тревог;
+у <code>gbv</code> — 27 пунктов.
+Кто из них лучше, зависит от того, кто платит за разбор.</p>
+
+<p><strong>Апертуры у детекторов разные, и это объявлено, а не спрятано.</strong> Харнесс
+не навязывает окно детектору, который его не просил: как читать длинный документ — часть
+детектора, а не линейки, и харнесс, режущий всем одинаково, мерил бы recall собственного
+сплиттера. <code>promptidote</code> читал окнами по 5000 символов — столько берёт
+его API; открытые модели — по 2000, их лимит контекста. Что именно читал каждый
+прогон, записано в его файле полями <code>policy</code>, <code>window</code>,
+<code>overlap</code>. Документов, которые разные апертуры вообще режут
+по-разному, здесь в любом случае мало: границу окна в 2000 символов пересекают
+142 инъекции из 16 800 — 0,85%.</p>
+</section>
+<section id="poly">
+<h2>Два дна, и они отвечают на разные вопросы</h2>
+<p>Две нижние строки таблицы — не украшение.</p>
+
+<p><strong>Тривиальный базлайн</strong> — классификатор на символьных n-граммах, ничего
+не знающий про семантику инъекций, обученный с расщеплением по формулировке, чтобы ни одна
+копия пейлоада не попала в собственный тест. Он берёт 21,4% на строгой
+точке. Детектор, который его не превзошёл, не показал ничего сверх словаря этого корпуса —
+и <code>proventra</code> его здесь не превосходит.</p>
+
+<p><strong>Regex floor</strong> — горстка цитируемых фраз («игнорируй предыдущие инструкции»,
+«system prompt»). Он бинарный, поэтому у него одна рабочая точка, а не кривая, и срабатывает
+он при 0,021% ложных. Его
+3,4% — это не характеристика детектора,
+а характеристика корпуса: примерно такая доля здешних инъекций является цитируемым шаблоном,
+который любой нагрепает. У Quadrat-IPI собственный regex floor читается как
+6,5% на английском корпусе — самая близкая к like-for-like линия между
+двумя наборами, с оговоркой, что списки фраз — переводы друг друга, а не одни и те же строки.</p>
+
+<p class="note">Оговорка к строке базлайна: у неё, единственной на этой странице, нет прогона
+в <code>results/</code>. Её измеряли до харнесса, скоры не сохранили, и пересчитать её
+по релизу нельзя — цифра приведена по <code>CONSTRUCTION.md</code>. Regex floor,
+в отличие от неё, лежит в релизе полностью.</p>
+
+<p>И ещё одно, что видно только при уравненном бюджете. Regex floor срабатывает при
+0,021% ложных, а колонка рядом снята
+при 0,1% — то есть остальным досталось впятеро больше бюджета. Если уравнять
+(<code>python3 -m proba.compare --against floor</code>), две английские модели падают
+до 0,0%: они проигрывают горстке регулярок, когда бюджет одинаковый.</p>
+</section>
+<section id="yazyk">
+<h2>Что переносится между языками</h2>
+<p>Пять детекторов измерены и на английском корпусе Quadrat-IPI, и на этом русском. Обе стороны
+на одном соглашении: все 16 800 инъекций, один общий порог, апертура
+в 2000 символов. Английская колонка прочитана из опубликованных <code>results/</code>
+самого Quadrat-IPI.</p>
+
+<div class="scroll"><table>
+<thead><tr><th>детектор</th><th class="n">EN @0,1%</th><th class="n">RU @0,1%</th>
+<th class="n">EN @1%</th><th class="n">RU @1%</th></tr></thead>
+<tbody>
+<tr><td><strong>proventra</strong> <span class="gloss">mDeBERTa, <strong>многоязычная</strong></span></td><td class="n">15,0%</td><td class="n em">13,1%</td><td class="n">42,3%</td><td class="n em">34,9%</td></tr>
+<tr><td><strong>bastion</strong> <span class="gloss">английская DeBERTa</span></td><td class="n">30,2%</td><td class="n em">0,7%</td><td class="n">50,6%</td><td class="n em">1,3%</td></tr>
+<tr><td><strong>piguard</strong> <span class="gloss">английская DeBERTa</span></td><td class="n">17,4%</td><td class="n em">0,1%</td><td class="n">56,9%</td><td class="n em">0,9%</td></tr>
+<tr><td><strong>protectai</strong> <span class="gloss">английская DeBERTa</span></td><td class="n">3,5%</td><td class="n em">0,2%</td><td class="n">14,8%</td><td class="n em">1,0%</td></tr>
+<tr><td><strong>deepset</strong> <span class="gloss">английская DeBERTa</span></td><td class="n">1,4%</td><td class="n em">0,1%</td><td class="n">7,3%</td><td class="n em">0,4%</td></tr>
+</tbody></table></div>
+
+<p><strong>Многоязычную строку и англоязычные надо читать друг против друга, а не по
+отдельности.</strong> Четыре англоязычные модели теряют между корпусами от 40 до 170 раз.
+Это их токенизатор, а не их веса: ни у одной нет русского в словаре. Поставить их рядом
+с русскоязычными детекторами без этой оговорки — значит записать архитектурный разрыв
+в разрыв по качеству.</p>
+
+<p>Единственная многоязычная модель теряет <strong>1,9 пункта на 0,1% и 7,4 пункта
+на 1%</strong>. Такой порядок — почти совпадение там, где бюджет жёсткий, и настоящий
+разрыв там, где он свободный — и есть честный результат, и он говорит сразу о двух вещах.
+Во-первых, сетка и композиция воспроизведены: зеркало, собранное неправильно, не легло бы
+в два пункта ни на одном конце. Во-вторых, этот корпус для той же модели действительно
+труднее на мягкой точке. Это <strong>не</strong> утверждение о бесплатном переносе,
+и более ранняя версия карточки именно так его и переоценила, сравнив английскую цифру
+по всем инъекциям с русской по одним подтверждённым.</p>
+
+<p>Две вещи, которыми разрыв не объясняется. Не апертура: другой сплиттер предложений
+может сдвинуть результат максимум на 0,85 пункта, потому что границу окна пересекают
+всего 142 инъекции из 16 800. И не чистый пул: оба порога ложатся
+в 0,002 пункта от своей целевой ставки.</p>
+</section>
+<section id="slepye-zony">
+<h2>Слепые зоны</h2>
+<p>Рычаг — это то, чем инъекция добивается послушания. Здесь recall по рычагам на строгой
+точке, три носителя вместе, один порог. Цветом отмечен худший рычаг каждого детектора.</p>
+
+<div class="scroll"><table>
+<thead><tr><th>рычаг</th><th class="n">promptidote</th><th class="n">gbv</th><th class="n">proventra</th></tr></thead>
+<tbody>
+<tr><td><code>bare</code></td><td class="n">70,3%</td><td class="n">44,0%</td><td class="n">14,8%</td></tr>
+<tr><td><code>identity</code></td><td class="n">68,4%</td><td class="n"><em>25,5%</em></td><td class="n">7,0%</td></tr>
+<tr><td><code>forged_frame</code></td><td class="n">63,3%</td><td class="n">46,3%</td><td class="n">20,1%</td></tr>
+<tr><td><code>execution_surface</code></td><td class="n">62,9%</td><td class="n">50,3%</td><td class="n">17,9%</td></tr>
+<tr><td><code>inference</code></td><td class="n">58,2%</td><td class="n">40,6%</td><td class="n">14,6%</td></tr>
+<tr><td><code>pretext</code></td><td class="n">51,0%</td><td class="n">26,5%</td><td class="n">8,6%</td></tr>
+<tr><td><code>output_marking</code></td><td class="n">49,4%</td><td class="n">31,9%</td><td class="n">6,5%</td></tr>
+<tr><td><code>guard</code></td><td class="n">49,3%</td><td class="n">31,7%</td><td class="n">13,9%</td></tr>
+<tr><td><code>revocation</code></td><td class="n">48,8%</td><td class="n">40,9%</td><td class="n">19,2%</td></tr>
+<tr><td><code>persistence</code></td><td class="n"><em>47,7%</em></td><td class="n">32,8%</td><td class="n"><em>6,0%</em></td></tr>
+</tbody></table></div>
+
+<p><strong>Общего дна по рычагу нет.</strong> <code>promptidote</code> и <code>proventra</code>
+хуже всего справляются с <code>persistence</code> — инъекцией, поданной как сохранённая
+конфигурация или память, — а <code>gbv</code> проваливается на <code>identity</code>.
+Более ранняя версия карточки объявляла общим дном <code>guard</code>; это было неверно,
+причём неверно против таблицы, напечатанной прямо над этим утверждением: <code>guard</code>
+оказался последней строкой только потому, что таблица отсортирована по первой колонке.</p>
+
+<p>А вот <strong>по цели общее дно есть</strong>, и оно переживает любую перенарезку:
+<code>unauthorized_action</code> — действие с внешним эффектом (отправить, заказать,
+оплатить) — худшая цель у всех трёх
+(promptidote 48,3%, gbv 28,2%, proventra 7,0%).
+Это самая дорогая клетка сетки: именно здесь инъекция что-то делает, а не что-то говорит.</p>
+
+<figure><div class="frame"><img src="figures/promptidote-intent-1e-04-20260821-200147-chunk5000o4-cells-all.svg" alt="сетка рычаг × цель, promptidote" loading="lazy"></div><figcaption>Все 92 типа атак у <code>promptidote</code>. Каждая плитка разбита пополам: слева recall на 0,1% ложных, справа на 1%. Последняя строка и последний столбец — маргиналы. Где половинки плитки резко расходятся, recall этой ячейки — факт про бюджет, а не про детектор.</figcaption></figure>
+
+<figure><div class="frame"><img src="figures/gbv-54664428-20260821-200147-chunk2000o4-cells-all.svg" alt="сетка рычаг × цель, gbv" loading="lazy"></div><figcaption>Та же сетка у <code>gbv</code>, лучшей открытой модели. Различается не только уровень: провалы лежат в других местах.</figcaption></figure>
+
+<figure><div class="frame"><img src="figures/proventra-b8a89d30-20260821-200147-chunk2000o4-cells-all.svg" alt="сетка рычаг × цель, proventra" loading="lazy"></div><figcaption>И у <code>proventra</code>. На строгой точке она не берёт половину ни в одной из 92 ячеек — отсюда ноль в колонке «ячейки».</figcaption></figure>
+
+<p>Средний recall прячет разброс. У <code>promptidote</code> на строгой точке
+от 27,5% в худшем типе атак до 83,8% в лучшем: насколько средняя цифра
+относится к вам, зависит от того, какие типы приходят именно к вам.</p>
+
+<figure><div class="frame"><img src="figures/promptidote-intent-1e-04-20260821-200147-chunk5000o4-curve.svg" alt="recall против бюджета, promptidote" loading="lazy"></div><figcaption>Весь размен целиком, а не точка. Логарифмическая ось x, потому что вопрос живёт в первой декаде: между 0,01% и 0,1% ложных — разница между фильтром, который можно поставить на поток, и тем, который нельзя. Полоса — 95-процентный интервал; заштрихованная слева зона — то, что 81 000 чистых документов вообще не в состоянии выразить: ставка, стоящая на горстке ложных срабатываний, — не ставка.</figcaption></figure>
+
+<figure><div class="frame"><img src="figures/promptidote-intent-1e-04-20260821-200147-chunk5000o4-marg-family.svg" alt="recall по рычагам, promptidote" loading="lazy"></div><figcaption>Строки сетки, свёрнутые в маргиналы: чем инъекция добивается послушания.</figcaption></figure>
+
+<figure><div class="frame"><img src="figures/promptidote-intent-1e-04-20260821-200147-chunk5000o4-marg-action.svg" alt="recall по целям, promptidote" loading="lazy"></div><figcaption>Столбцы сетки: чего инъекция просит.</figcaption></figure>
+
+<p class="note">Подписи на всех фигурах английские. Их рисует <code>figures.py</code>,
+перенесённый из чужого харнесса без изменений, и переписывать его ради локализации
+подписей значило бы потерять ровно то свойство, ради которого он взят неизменным.
+Расшифровка всех двадцати ключей — в разделе <a href="#korpus">«Как устроен корпус»</a>.</p>
+</section>
+<section id="svoj-detektor">
+<h2>Как измерить свой детектор</h2>
+<p>Харнесс — <a href="https://github.com/lovec-tech/proba-ipi-eval">proba-ipi-eval</a>. Один класс, один метод. Корпус
+скачивается при первом запуске, версия зафиксирована тегом.</p>
+
+<pre><code>python3 -m proba.run --list                 # все зарегистрированные адаптеры
+python3 -m proba.run --detector floor       # измерить один (этому не нужна модель)
+python3 -m proba.report                     # страница на каждый детектор
+python3 -m proba.compare --against floor    # все при одном бюджете, по сохранённым скорам</code></pre>
+
+<pre><code>from proba.detector import Detector, register
+
+@register("my-detector", version="1.2")
+class MyDetector(Detector):
+    max_chars = 2000                 # ваш лимит контекста; опустите, если его нет
+
+    def setup(self):                 # необязательно
+        self.model = load_model()
+
+    def score(self, docs):           # yield одного float на документ, в том же порядке
+        for d in docs:
+            yield self.model.predict(d.text)</code></pre>
+
+<p><strong>Апертура ваша.</strong> В <code>score</code> харнесс отдаёт документы целиком.
+Объявите <code>max_chars</code> — базовый класс сам порежет их на окна по границам
+предложений с нахлёстом в четыре предложения. Или переопределите
+<code>score_documents</code> и режьте так, как режет ваш продукт. Чего харнесс не сделает
+никогда — не навяжет окно детектору, который его не просил: как читать длинный документ,
+решает сам детектор, а харнесс, который резал бы всем одинаково, измерял бы recall
+собственного сплиттера.</p>
+
+<p><strong>Возвращайте непрерывный скор</strong>, выше — больше похоже на инъекцию. Весь
+протокол держится на подборе порога под целевую FPR, а вердикт пороговать нельзя. Если
+детектор и правда бинарный, укажите <code>binary = True</code>, и он покажется на своей
+собственной точке, а не будет притворяться, что для него существует кривая.</p>
+
+<p>Измерьте свой детектор и опубликуйте строку. Харнесс существует ровно для этого.</p>
+</section>
+<section id="korpus">
+<h2>Как устроен корпус</h2>
+<p>Две ортогональные оси, взятые у Quadrat-IPI без изменений. <strong>Рычаг</strong> —
+чем вставка добивается послушания. <strong>Цель</strong> — чего она просит. Сто пар
+минус восемь структурно невозможных дают 92 заполненные ячейки; список
+невозможных не выдуман, а посчитан по корпусу Quadrat-IPI.</p>
+
+<div class="scroll"><table class="gl">
+<thead><tr><th>рычаг</th><th>что это</th></tr></thead>
+<tbody>
+<tr><td><code>bare</code></td><td>прямое требование без всякой подпорки</td></tr>
+<tr><td><code>execution_surface</code></td><td>замаскировано под исполняемый код: макрос, формула, шаблон</td></tr>
+<tr><td><code>forged_frame</code></td><td>подделывает служебную границу: теги, маркеры конца блока, роли</td></tr>
+<tr><td><code>guard</code></td><td>выдаёт себя за систему безопасности и её вердикт</td></tr>
+<tr><td><code>identity</code></td><td>переназначает персону или роль</td></tr>
+<tr><td><code>inference</code></td><td>подаёт посылку как факт, вывод модель делает сама</td></tr>
+<tr><td><code>output_marking</code></td><td>управляет форматом ответа</td></tr>
+<tr><td><code>persistence</code></td><td>подано как конфигурация или сохранённая память</td></tr>
+<tr><td><code>pretext</code></td><td>выдумывает процедуру, внутрь которой вложено требование</td></tr>
+<tr><td><code>revocation</code></td><td>объявляет прежние инструкции недействительными</td></tr>
+</tbody></table></div>
+
+<div class="scroll"><table class="gl">
+<thead><tr><th>цель</th><th>что это</th></tr></thead>
+<tbody>
+<tr><td><code>deny</code></td><td>сделать работу и утаить результат</td></tr>
+<tr><td><code>disarm</code></td><td>выключить фильтр или проверку</td></tr>
+<tr><td><code>disclose</code></td><td>раскрыть системную инструкцию</td></tr>
+<tr><td><code>escalate</code></td><td>получить повышенные права</td></tr>
+<tr><td><code>execute</code></td><td>выполнить команду или скрипт</td></tr>
+<tr><td><code>exfiltrate</code></td><td>отправить данные выбранному получателю</td></tr>
+<tr><td><code>hijack_task</code></td><td>подменить задачу другой</td></tr>
+<tr><td><code>manipulate</code></td><td>исказить вывод, продолжая делать работу</td></tr>
+<tr><td><code>persist</code></td><td>чтобы изменение пережило сессию</td></tr>
+<tr><td><code>unauthorized_action</code></td><td>действие с внешним эффектом: отправить, заказать, оплатить</td></tr>
+</tbody></table></div>
+
+<p>Глубина ячеек оттуда же: 33 ячейки по 80 пейлоадов, 59 по 240. Значения сняты
+с корпуса Quadrat-IPI ячейка за ячейкой, а не назначены одним плоским числом — плоское число дало бы
+доверительным интервалам другую ширину, и сравнение по ячейкам перестало бы что-то
+значить.</p>
+
+<h3>Конвейер</h3>
+
+<ul>
+<li><strong>Носители.</strong> 115 357 документов из трёх источников, набранных в стороне
+от чистых пулов: пересечение по хешу полного текста нулевое, так что чистый сплит
+не тронут и прежние измерения на нём остаются в силе. Персональные данные вычищены.</li>
+<li><strong>Пейлоады.</strong> Генерируются по ячейке с явным запретом повторять уже
+существующие, дедуплицируются по нормализованному тексту, не больше трёх с одинаковым
+двухсловным началом.</li>
+<li><strong>Слепой судья.</strong> Читает <em>только текст пейлоада</em>, не зная ячейки,
+под которую его заказывали, и называет три вещи: инъекция ли это вообще, рычаг, цель.</li>
+<li><strong>Размещение</strong> — правило Quadrat-IPI дословно. Совпало по обеим осям —
+осталось на месте (23,7%); не совпало — переезжает в названную судьёй ячейку,
+если там есть место (27,7%); недобор добивается из отвергнутого пула ближайшим по вердикту
+(34,2%); остаток — quota fill с меткой <code>inj_verified: false</code> (14,5%).
+Несущая деталь тут — ограничение вместимости: без него пробный прогон растянул размеры
+ячеек от 1 до 788 при цели 80/240.</li>
+<li><strong>Композиция.</strong> Один пейлоад — один документ. Позиция, обфускация, стиль
+и сворачивание типографики берутся в тех же пропорциях. Спан проверен на каждом документе:
+16 800 из 16 800.</li>
+</ul>
+
+<p>Что отличается осознанно: носители русские; пейлоады написаны, а не переведены (пейлоады
+Quadrat-IPI привязаны к сценариям его собственных носителей — переводам, аудитам, бронированиям, —
+и такая строка в карточке товара выглядит бессмыслицей); гомоглифы вывернуты наизнанку
+(в английском корпусе латиница подменяется похожей кириллицей, здесь наоборот).</p>
+</section>
+<section id="ogranicheniya">
+<h2>Ограничения</h2>
+<p><strong>Слепой судья здесь слабее, чем судья Quadrat-IPI, и это измерено,
+а не предположено.</strong> Согласие с заказанной ячейкой по обеим осям —
+<strong>27,0%</strong> против заявленных там ~74%. Чтобы понять, судья это или пейлоады,
+наш судья был прогнан на 600 размеченных строк Quadrat-IPI: <strong>48,3%</strong> согласия (64,5% по одному рычагу,
+75,9% по одной цели). Потеря делится примерно поровну между тем и другим. Оговорка
+к самой этой цифре: те строки — английский текст, а промпт судьи русский, и чистое
+сравнение потребовало бы английского промпта, которого не запускали. Метки уровня ячейки
+надо читать с этой поправкой; recall уровня документа она не задевает.</p>
+
+<p><strong>14,5% строк лежат в ячейке, которую судья для них не выбирал</strong> — тот самый
+quota fill. Они добивают ячейку до целевой глубины, и <em>все цифры на этой странице
+их включают</em>, потому что опубликованные строки Quadrat-IPI включают его собственный
+quota fill, а сравнение двух наборов обязано идти по одному знаменателю. Это ещё и более
+трудные строки: если ограничиться подтверждёнными инъекциями, сильные детекторы
+поднимаются на 2–5 пунктов (<code>promptidote</code> 57,8% → 61,7%, <code>gbv</code>
+37,7% → 40,0%, <code>proventra</code> 13,1% → 14,9% на строгой точке), а слабые
+не двигаются. Читайте любую из двух цифр, но не смешивайте соглашение одного набора
+с соглашением другого — ранняя версия карточки сделала именно это в межъязыковой таблице.</p>
+
+<p><strong>32 строк нашего собственного прогона сняты с чуть другого текста.</strong>
+Уже после того, как прогон был измерен, в 32 документах с инъекцией замаскировали
+телефоны цифра в цифру. Остальные прогоны пересчитали на исправленном тексте —
+самый большой сдвиг составил 0,006 пункта; <code>promptidote</code> достаётся по сетевому
+API, и эти строки не перескорили. Их идентификаторы перечислены полем
+<code>stale_ids</code> в его файле результата, а закрывается это одной командой
+<code>proba.rescore</code> с ключом к API.</p>
+
+<p><strong>Один генератор, а не каскад.</strong> Почти каждый пейлоад написан
+<code>deepseek-chat</code>; набор Quadrat-IPI опирается на несколько моделей.</p>
+
+<p><strong><code>locality</code> — это метка, а не преобразование.</strong>
+В схеме Quadrat-IPI
+у поля четыре значения по 25% каждое (<code>point</code>, <code>spread</code>,
+<code>buried</code>, <code>repeated</code>). Проверка по его же данным: во всех четырёх
+случаях спан точно равен тексту инъекции, инъекция встречается ровно один раз,
+распределение позиций одинаковое. Поле выставлено здесь в тех же пропорциях, чтобы оно
+существовало и сравнивалось, но текст от него не зависит.</p>
+
+<p><strong>Самая тугая ячейка — <code>bare</code> × <code>deny</code>.</strong> Голое
+требование без рамки, роли и предлога, которое к тому же просит сделать работу и утаить
+результат, допускает мало разных формулировок: ячейка висела на 59–75 пейлоадах
+и потребовала нескольких проходов генерации, чтобы дойти до глубины. Quadrat-IPI решает это
+объявлением восьми пар структурно невозможными заранее; здесь одна тугая, но возможная пара
+нашлась в процессе сборки, а не была объявлена до неё.</p>
+
+<p><strong>Сплиттер предложений.</strong> Регулярка, на которую откатывается
+<code>window.sentence_spans</code> без <code>blingfire</code>, требует заглавной буквы
+после точки — и только из латиницы. На русском она почти не находит границ и вырождается
+в нарезку кусками по 2000 символов. Опубликованные цифры сняты именно в этом состоянии,
+поэтому <code>blingfire</code> здесь опциональная зависимость: поставите её — и свежий
+прогон разойдётся с таблицей, которую должен воспроизвести. Какой сплиттер сработал,
+записано в каждом результате полем <code>segmenter</code>.</p>
+</section>
+<section id="licenzii">
+<h2>Лицензии и dual use</h2>
+<p>Лицензия построчная, по источнику носителя: <code>cc0-1.0</code> для карточек товаров
+(<a href="https://huggingface.co/datasets/nyuuzyou/ke-products">nyuuzyou/ke-products</a>),
+<code>mit</code> для отзывов
+(<a href="https://github.com/yandex/geo-reviews-dataset-2023">Яндекс, geo-reviews-dataset-2023</a>),
+<code>odc-by</code> для веб-текста
+(<a href="https://huggingface.co/datasets/HuggingFaceFW/fineweb-2">FineWeb-2</a>
+плюс Common Crawl Terms of Use). Наш вклад — инъекции, метки, размещение, замеры —
+<strong>CC-BY-4.0</strong>, и намеренно не NC: несколько измеренных здесь детекторов
+коммерческие, а под NC их создатели не смогли бы опубликовать результаты на этом наборе.</p>
+
+<p><strong>Персональные данные вычищены, в отличие от английского корпуса.</strong> Quadrat-IPI
+сохраняет настоящие имена из своих носителей Enron и FOIA, рассуждая, что носитель — это
+и есть то, против чего меряют детектор. Здесь выбор обратный: телефоны, адреса почты,
+<code>@handles</code> и ссылки на профили заменены плейсхолдерами до публикации,
+а документы, где правдоподобный контакт пережил чистку, выброшены целиком. Проверка идёт
+по <em>вычищенному</em> тексту, после подстановки плейсхолдеров, а не до: два документа
+стали побайтово идентичны уже опубликованным строкам именно после подстановки и проскочили
+бы проверку, сделанную раньше. Отдельный проход поймал 41 телефон, переживший чистку
+за счёт нестандартного форматирования, и замаскировал их цифра в цифру, сохранив все
+смещения спанов.</p>
+
+<p><strong>Dual use.</strong> Набор содержит работающие формулировки инъекций и опубликован
+открыто. Так устроен каждый оценочный корпус этого класса: без него детекторам не на чем
+проверяться, а любой вендор может назвать любую цифру.</p>
+</section>
+<section id="fajly">
+<h2>Файлы и воспроизводимость</h2>
+<p>Корпус — <a href="https://huggingface.co/datasets/privettoha/proba-ipi">privettoha/proba-ipi</a> на Hugging Face. Харнесс —
+<a href="https://github.com/lovec-tech/proba-ipi-eval">lovec-tech/proba-ipi-eval</a>. Ядро измерения —
+<a href="https://github.com/mihail-gribov/quadrat-ipi-eval">quadrat-ipi-eval</a>, перенесённое без изменений.</p>
+
+<div class="scroll"><div class="files">data/
+  injected_{cards,reviews,web}.jsonl   16 800 документов с инъекцией
+  {cards,reviews,web}_clean.jsonl      81 000 чистых документов
+  injections.jsonl                     банк пейлоадов с ячейкой и вердиктом судьи
+  INVARIANTS.txt                       результат проверок за каждым утверждением
+results/
+  &lt;детектор&gt;-&lt;версия&gt;-&lt;штамп&gt;-&lt;апертура&gt;.json          метрики, ячейки, маргиналы
+  &lt;детектор&gt;-&lt;версия&gt;-&lt;штамп&gt;-&lt;апертура&gt;.scores.jsonl   скор по каждому из 97 800 документов
+reports/
+  README.md                            индекс: все детекторы, обе точки
+  &lt;прогон&gt;.md + figures/*.svg          страница на детектор</div></div>
+
+<p>Каждый прогон записывает апертуру, через которую читал (<code>policy</code>,
+<code>window</code>, <code>overlap</code>), и то, <strong>какой сплиттер был
+активен</strong> (<code>segmenter</code>): на русском это не взаимозаменяемые вещи,
+а цифра с необъявленным сплиттером невоспроизводима. 7 прогонов
+из 8 несут <code>imported: true</code>: их скоры старше харнесса, а метрики
+пересчитаны из этих скоров, без повторного запуска модели. Такие прогоны намеренно
+не показывают <code>seconds</code> и <code>n_windows</code> — показывать время, которого
+не измеряли, нельзя.</p>
+
+<p>Порог — это число, выбранное по сохранённым скорам постфактум. Поэтому сдвинуть рабочую
+точку, перенарезать слайс или перерисовать таблицу — секунда арифметики, а не новый прогон,
+и новый детектор можно сравнить с этими семью, не запуская их заново.</p>
+
+<pre><code>python3 -m proba.table --results eval-out/results   # таблицы карточки
+python3 -m proba.report                             # страницы отчётов
+python3 -m proba.compare --against floor            # единый бюджет для всех</code></pre>
+</section>
+
+<footer>
+<p>Все цифры на этой странице прочитаны из файлов результатов в
+<a href="https://github.com/lovec-tech/proba-ipi-eval/tree/main/docs/results"><code>docs/results/</code></a> и собраны
+скриптом <code>docs/build_page.py</code>: страница ничего не считает сама и поэтому
+не может разойтись с прогоном, который описывает. Исключения названы там, где они есть.</p>
+<p>Инъекции, метки, размещение и замеры — CC-BY-4.0. Текст носителей — по лицензии
+своего источника, построчно.</p>
+</footer>
+</div>
+</body>
+</html>
